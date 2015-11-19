@@ -93,13 +93,10 @@ sc_study_time(e5,1).
 sc_study_penalty(S,3) :- student(S,_). %guarantee enough study time
 
 
-%% --- PROJECT ---
+%%
+%%%% PROJECT
+%%
 
-mysched([event(e3,_,_,_),
-		 event(e5,_,_,_),
-		 event(e1,_,_,_),
-		 event(e2,_,_,_),
-		 event(e4,_,_,_)|X]).
 
 % removeOne(?List, ?E, ?NewList) <- remove first occurence of E
 %									in List, resulting in NewList
@@ -120,75 +117,115 @@ full_schedule([event(E1,_,_,_)|Events],Exams):-
 	!, %red cut <- we only want to generate one schedule
 	full_schedule(Events, NewExams).
 
-% room_available(Room,Exam,Reservations)
-room_available(Exam,Room,Day,Hstart,Hstop):-
-	duration(Exam,Duration),
-	availability(Room,Day,Start,Stop),
-	possible_slot(Hstart,Hstop,Duration,Start,Stop).
-
-possible_slot(Start,End,Duration,Start,Stop):-
-	End is Start+Duration,
-	End =< Stop.
-
-possible_start(Hstart,Hstop,Duration,Start,Stop):-
-	End is Start+Duration,
-	End < Stop,
-	NextStart is Start+1,
-	possible_start(Hstart,Hstop,Duration,NextStart,Stop).
-
 %%%%%%%%%%%%%%
 
+takes_exam(Student,Exam):-
+	has_exam(Course,Exam),
+	follows(Student,Course).
+	
+%
+% TODO: use setof to avoid duplicates?
+%
+required_capacity(Exam,RequiredCapacity):-
+	findall(S,takes_exam(S,Exam),Students),
+	length(Students,RequiredCapacity).
 
-
+room_suitable(Room,RequiredCapacity):-
+	capacity(Room,Capacity),
+    RequiredCapacity =< Capacity.
 
 %% TIMETABLE
-emptyTimeTable(T):-
-	findall(room(R,A),
-			setof(free(D,St,Sp),availability(R,D,St,Sp),A),
+available_timeslots(T):-
+	findall(room(Room,AvailableSlots),
+			(bagof(slot(Day,Start,Duration),
+			       Stop^(availability(Room,Day,Start,Stop),
+				         Duration is Stop - Start),
+				         UnsortedSlots),
+			 sort(3,@>=,UnsortedSlots,AvailableSlots)),
 			T).
 
-free_slot(event(Exam,Room,Day,Hour),[room(Room,Slots)|Rs],[room(Room,NewSlots)|Rs]):-
-	room_suitable(Room,Exam),
-	slot_claim(Slots,Exam,Day,Hour,NewSlots).
-free_slot(Event,[Room|T],[Room|Z]):-
-	free_slot(Event,T,Z).
+free_slot(Slots,event(Exam,R,D,H),NewSlots):-
+	duration(Exam,Duration),
+	required_capacity(Exam,ReqCapacity),
+	free_slot_aux(Slots,exam(ReqCapacity,Duration,R,D,H),NewSlots).
+	
+free_slot_aux([room(Room,Slots)|Rs],exam(Rc,Dr,Room,Dy,Hr),[room(Room,NewSlots)|Rs]):-
+	room_suitable(Room,Rc), %room has required capacity
+	slot_from(Slots,exam(Dr,Dy,Hr),NewSlots).
+free_slot_aux([Room|T],Exam,[Room|Z]):-
+	free_slot_aux(T,Exam,Z).
 
-slot_claim(Slots,Exam,Day,Hour,NewSlots):-
-	duration(Exam,Duration), %retrieve only once
-	slot_claim(Slots,Exam,Duration,Day,Hour,NewSlots).
-slot_claim([free(Day,Start,Stop)|Rest],Exam,Duration,Day,Hour,NewSlots):-
-	LatestStart is Stop-Duration,
+slot_from([slot(_,_,Duration)|_],exam(Time,_,_),_):-
+	Duration < Time, 
+	!, % red cut -> optimize, slots are sorted
+	fail.
+slot_from([slot(Day,Start,Duration)|Rest],exam(Time,Day,Hour),NewSlots):-
+	Stop is Start + Duration,
+	LatestStart is Stop - Time,
 	between(Start,LatestStart,Hour),
-	End is Hour+Duration,
-	split_slot(Day,Hour,End,Start,Stop,Exam,Rest,NewSlots).
-slot_claim([H|T],Exam,Duration,Day,Hour,[H|Z]):-
-	slot_claim(T,Exam,Duration,Day,Hour,Z).
+	End is Hour + Time,
+	split_slot(Day,Hour,End,Start,Stop,Rest,NewSlots).
+slot_from([H|T],E,[H|Z]):-
+	slot_from(T,E,Z).
 
 %%
 %% TODO: with or without red cuts?
 %%
-split_slot(Day,Start,Stop,Start,Stop,Exam,Rest,[reserved(Exam,Day,Start,Stop)|Rest]):-
+split_slot(Day,Start,Stop,Start,Stop,Rest,Rest):-
 	!. %red cut, avoid trying other possibilities
-split_slot(Day,Start,End,Start,Stop,Exam,Rest,[R,F|Rest):-
-	R = reserved(Exam,Day,Start,End),
-	F = free(Day,End,Stop),
+split_slot(Day,Start,End,Start,Stop,Rest,NewSlots):-
+	Post is Stop - End,
+	insert_slot(slot(Day,End,Post),Rest,NewSlots),
 	!. %red cut, avoid trying other possibilities
-split_slot(Day,Hour,Stop,Start,Stop,Exam,Rest,[F,R|Rest)):-
-	F = free(Day,Start,Hour),
-	R = reserved(Exam,Day,Hour,Stop),
+split_slot(Day,Hour,Stop,Start,Stop,Rest,NewSlots):-
+	Pre is Hour - Start,
+	insert_slot(slot(Day,Start,Pre),Rest,NewSlots),
 	!. %red cut, avoid trying other possibilities
-split_slot(Day,Hour,End,Start,Stop,Exam,Rest,[F1,R,F2|Rest]):-
-	F1 = free(Day,Start,Hour),
-	R = reserved(Exam,Day,Hour,End),
-	F2 = free(Day,End,Stop).
+split_slot(Day,Hour,End,Start,Stop,Rest,NewSlots):-
+	Pre is Hour - Start,
+	Post is Stop - End,
+	insert_slot(slot(Day,Start,Pre),Rest,TempNew),
+	insert_slot(slot(Day,End,Post),TempNew,NewSlots).
 
-% is_valid(+Schedule) <- is Schedule a valid exam schedule
+slot_sm(slot(_,_,D1),slot(_,_,D2)):-
+	D1 < D2.
+
+insert_slot(S,[],[S]).
+insert_slot(S,[H|T],[H|Z]):-
+	slot_sm(S,H),
+	!, %red cut
+	insert_slot(S,T,Z).
+insert_slot(S,[H|T],[S,H|T]).
+
+%is_valid(Schedule) <- is Schedule a valid exam schedule.
+
+conflict(E1,E2):-
+	follows(S,E1),
+	follows(S,E2).
+
+conflict(E1,E2):-
+	has_exam(C1,E1),
+	has_exam(C2,E2),
+	teaches(L,C1),
+	teaches(L,C2).
+
+reservation([],Event,[Event]).
+reservation([H|S],E,[H|Z]):-
+	before(H,E),
+	reservation(S,E,Z).
+reservation([]):-
+
+
+	
+
+
 is_valid(schedule(EventList)):-
 	full_schedule(EventList),
-	emptyTimeTable(TimeTable),
-	is_valid(EventList,TimeTable).
+	available_timeslots(FreeSlots),
+	is_valid(EventList,FreeSlots,[]).
 
-is_valid([],_).
-is_valid([Event|Events],TimeTable):-
-	free_slot(Event,TimeTable,NewTimeTable),
-	is_valid(Events,NewTimeTable).
+is_valid([],_,_).
+is_valid([Event|Events],FreeSlots,Reserved):-
+	free_slot(FreeSlots,Event,NewFreeSlots),
+	reservation(Reserved,Event,NewReservations),
+	is_valid(Events,NewFreeSlots,NewReservations).

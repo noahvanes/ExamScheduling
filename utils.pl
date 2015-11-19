@@ -28,8 +28,6 @@ empty_schedule(X):-
 			bagof(free_slot(D,St,Sp),availability(R,D,St,Sp),Availabilities),
 			X).
 
-my_insert(Exam,
-
 %% SEARCH PROBLEM
 
 goal(s(FinalSchedule,[])).
