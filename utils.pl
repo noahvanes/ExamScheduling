@@ -1,50 +1,51 @@
-%% UTILS
 
-delete_from([E|T],E,T).
-delete_from([H|T],E,[H|Z]):-
+available_timeslots(T):-
+	findall(room(Room,AvailableSlots),
+			bagof(slot(Day,Start,Stop),
+			      availability(Room,Day,Start,Stop),
+			      AvailableSlots),
+			T).
+
+% removeOne(?List, ?E, ?NewList) <- remove first occurence of E
+%									in List, resulting in NewList
+removeOne([E|R],E,R).
+removeOne([H|T],E,[H|Z]):-
 	H \= E,
-	delete_from(T,E,Z).
+	removeOne(T,E,Z).
 
-difference_list([],Y-Y).
-difference_list([H|T],[H|Y]-Y0):-
-	difference_list(T,Y-Y0).
+takes_exam(Student,Exam):-
+	has_exam(Course,Exam),
+	follows(Student,Course).
 
-merge([H1|T1],[H2|T2],[H1|Z],P):-
-	P(H1,
+required_capacity(Exam,RequiredCapacity):-
+	findall(S,takes_exam(S,Exam),Students),
+	length(Students,RequiredCapacity).
+
+
+
+
+is_valid(schedule(EventList)):-
+	findall(E,exam(E,_),Exams),
+	available_timeslots(FreeSlots),
+	is_valid(EventList,Exams,FreeSlots,[]).
+
+
+is_valid([],[],_,_).
+is_valid([event(Exam,Room,Day,Hour)|Events],Exams,Slots,Reservations):-
+	remove_one(Exams,Exam,Remaining),
+	!, %red cut <- consider only one exam each time
+	exam_students(Exam, Students),
+	exam_lecturer(Exam, Lecturer),
+	length(Students, ReqCapacity),
+	free_slot(Slots,slot(Room,Day,Hour,End),NewSlots),
 	
 
-% state(currentSchedule,toSchedule)
 
-%% SCHEDULE REPRESENTATION + ABSTRACTION
+	room_suitable(Exam,Room),
+	room_available(Exam,Room,Day,Hour,End),
+	NewEntry = exam(Exam,Room,Day,Hour,End),
+	not(conflict(NewEntry,Reservations)),
+	is_valid(Events,Remaining,[NewEntry|Reservations]).
 
-%	[ R1, R2, R3, ..., RN ]
-%	   \---\---\--------\--> [(D,START,DURATION)|...]
-%			\---\--------\--> [...]
-%				 \--------\--> [...]
-%						   \--> [...]
 
-empty_schedule(X):-
-	findall(room(R,Availabilities),
-			bagof(free_slot(D,St,Sp),availability(R,D,St,Sp),Availabilities),
-			X).
 
-%% SEARCH PROBLEM
-
-goal(s(FinalSchedule,[])).
-
-successor(s(Schedule,Exams),s(NewSchedule,Rest)):-
-	delete_from(Exams,E,Rest),
-	!, %red cut, only consider one for CSP
-	insert_schedule(Schedule,E,NewSchedule).
-
-is_valid(Schedule):-
-	empty_schedule(E),
-	findall(E,exam(E,_),Exams),
-	my_schedule(Schedule,MySchedule),
-	search(s(E,Exams),s(MySchedule,[])).
-
-search(Goal,Goal):- 
-	goal(Goal).
-search(Current,Goal):-
-	successor(Current,NewState),
-	search(NewState,Goal).

@@ -1,3 +1,5 @@
+:- dynamic share_students/3.
+
 lecturer(l1,'Mr John').
 lecturer(l2,'Mr Francis').
 lecturer(l3,'Mr Josef').
@@ -90,24 +92,48 @@ room_available(Exam,Room,Day,Hour,End):-
 	End is Hour + Duration.
 
 %conflicts can only occur on the same Day
-conflict(exam(E1,R1,D,H1,F1),[exam(E2,R2,D,H2,F2)|Exams]):-
-	overlap(H1,F1,H2,F2), 	%do the scheduled hours of both exams overlap?
-	problem(E1,R1,E2,R2). 	%is it a problem to hold E1@R1 and E2@R2 concurrently?
-conflict(NewExam,[Exam|Exams]):-
+conflict(NewEntry,[Exam|_]):-
+	overlap(NewEntry,Exam), 	%do the scheduled hours of both exams overlap?
+	problem(NewEntry,Exam). 	%is it a problem to hold both exams concurrently?
+conflict(NewExam,[_|Exams]):-
 	conflict(NewExam,Exams).
 
-overlap(H1,F1,H2,F2):- 
+overlap(exam(_,_,D,H1,F1),exam(_,_,D,H2,_)):- 
 	H1 =< H2, 
 	F1 > H2.
-overlap(H1,F1,H2,F2):-
+overlap(exam(_,_,D,H1,_),exam(_,_,D,H2,F2)):- 
 	H1 >= H2,
 	H1 < F2.
 
-problem(E1,R,E2,R).			%two overlapping exams in the same room
-problem(E1,R1,E2,R2):-fail.	%two overlapping exams with overlapping participants
-	%mutual_exclusive(E1,E2).
+problem(exam(_,R,_,_,_),exam(_,R,_,_,_)).		%two overlapping exams in the same room
+problem(exam(E1,_,_,_,_),exam(E2,_,_,_,_)):-	%two overlapping exams with overlapping participants
+	mutual_exclusive(E1,E2).
+
+exam_lecturer(Exam,Lecturer):-
+	has_exam(Course,Exam),
+	lecturer(Course,Lecturer).
+
+mutual_exclusive(E1,E2):-
+	exam_lecturer(E1,L),
+	exam_lecturer(E2,L).
+mutual_exclusive(E1,E2):-
+	share_students(E1,E2,_).
+
+takes_exams(S,E1,E2):-
+	takes_exam(S,E1),
+	takes_exam(S,E2),
+	E1 \= E2.
+
+assert_exam_students:-
+	bagof(S,takes_exams(S,E1,E2),L),
+	asserta(share_students(E1,E2,L)).
+
+setup_assertions:-
+	%TODO: some assertion check
+	findall(_,assert_exam_students,_).
 
 is_valid(schedule(EventList)):-
+	setup_assertions,
 	findall(E,exam(E,_),Exams),
 	is_valid(EventList,Exams,[]).
 
@@ -121,9 +147,41 @@ is_valid([event(Exam,Room,Day,Hour)|Events],Exams,Reservations):-
 	not(conflict(NewEntry,Reservations)),
 	is_valid(Events,Remaining,[NewEntry|Reservations]).
 
+%%%%%
 
-cost(schedule(EventList),Cost):-
-	cost(EventList,0,Penalties,Cost).
+mysched(schedule([
+	event(e3, r1, 3, 10), 
+	event(e5, r2, 4, 10),
+	event(e1, r2, 1, 10), 
+	event(e2, r2, 2, 10), 
+	event(e4, r1, 3, 12)
+])).
+
+violates_sc(schedule(EventList),SC):-
+	schedule(EventList,Schedule),
+	findall([1,2,3|X]
+
+
+
+schedule([],[]).
+schedule([E|Es],Schedule):-
+	schedule(Es,ScheduleRest),
+	add_event(E,ScheduleRest,Schedule).
+
+add_event(event(E,_,D,H),[],[day(D,L)]):-
+	add_exam(exam(E,H),[],L).
+add_event(event(E,_,D,H),[day(D,L)|Ds],[day(D,NL)|Ds]):-
+	add_exam(exam(E,H),L,NL).
+add_event(event(E,_,D1,H),[day(D2,L2)|Ds],[day(D1,L1),day(D2,L2)|Ds]):-
+	D1 < D2,
+	add_exam(exam(E,H),[],L1).
+add_event(event(E,_,D1,H),[day(D2,L2)|Ds],[day(D2,L2)|Dz]):-
+	D1 > D2,
+	add_event(event(E,_,D1,H),Ds,Dz).
+
+add_exam(E,R,[E|R]).
+
+
 
 
 %%% NOTES %%%
