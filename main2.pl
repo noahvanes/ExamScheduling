@@ -1,4 +1,9 @@
 :- dynamic share_students/3.
+:- dynamic required_capacity/2.
+:- dynamic exam_students/2.
+:- dynamic c_examHours/3.
+:- dynamic c_examRoom/2.
+:- dynamic c_examDay/2.
 
 lecturer(l1,'Mr John').
 lecturer(l2,'Mr Francis').
@@ -75,10 +80,6 @@ takes_exam(Student,Exam):-
 	has_exam(Course,Exam),
 	follows(Student,Course).
 
-required_capacity(Exam,RequiredCapacity):-
-	findall(S,takes_exam(S,Exam),Students),
-	length(Students,RequiredCapacity).
-
 room_suitable(Exam,Room):-
 	required_capacity(Exam,ReqCapacity),
 	capacity(Room,Capacity),
@@ -92,21 +93,21 @@ room_available(Exam,Room,Day,Hour,End):-
 	End is Hour + Duration.
 
 %conflicts can only occur on the same Day
-conflict(NewEntry,[Exam|_]):-
-	overlap(NewEntry,Exam), 	%do the scheduled hours of both exams overlap?
-	problem(NewEntry,Exam). 	%is it a problem to hold both exams concurrently?
+conflict(exam(E1,R1,D,H1,F1),[exam(E2,R2,D,H2,F2)|_]):-
+	overlap(H1,F1,H2,F2), 	%do the scheduled hours of both exams overlap?
+	problem(E1,R1,E2,R2). 	%is it a problem to hold both exams concurrently?
 conflict(NewExam,[_|Exams]):-
 	conflict(NewExam,Exams).
 
-overlap(exam(_,_,D,H1,F1),exam(_,_,D,H2,_)):- 
+overlap(H1,F1,H2,_):- 
 	H1 =< H2, 
 	F1 > H2.
-overlap(exam(_,_,D,H1,_),exam(_,_,D,H2,F2)):- 
+overlap(H1,_,H2,F2):- 
 	H1 >= H2,
 	H1 < F2.
 
-problem(exam(_,R,_,_,_),exam(_,R,_,_,_)).		%two overlapping exams in the same room
-problem(exam(E1,_,_,_,_),exam(E2,_,_,_,_)):-	%two overlapping exams with overlapping participants
+problem(_,R,_,R).		%two overlapping exams in the same room
+problem(E1,_,E2,_):-	%two overlapping exams with overlapping participants
 	mutual_exclusive(E1,E2).
 
 exam_lecturer(Exam,Lecturer):-
@@ -124,13 +125,20 @@ takes_exams(S,E1,E2):-
 	takes_exam(S,E2),
 	E1 \= E2.
 
-assert_exam_students:-
+assert_shared_exam_students:-
 	bagof(S,takes_exams(S,E1,E2),L),
 	asserta(share_students(E1,E2,L)).
 
+assert_exam_students:-
+	bagof(S,takes_exam(S,E),L),
+	length(L,N),
+	asserta(exam_students(E,L)),
+	asserta(required_capacity(E,N)).
+
 setup_assertions:-
 	%TODO: some assertion check
-	findall(_,assert_exam_students,_).
+	findall(_,assert_exam_students,_),
+	findall(_,assert_shared_exam_students,_).
 
 is_valid(schedule(EventList)):-
 	setup_assertions,
@@ -158,10 +166,42 @@ mysched(schedule([
 ])).
 
 violates_sc(schedule(EventList),SC):-
-	schedule(EventList,Schedule),
-	findall([1,2,3|X]
+	assert_schedule(EventList),
+	findall(sc_lunch_break(P,E,C),lunch_penalty(E,P,C),SC1),
+	findall(sc_no_exam_in_period(L,E,D,F,T,P),lecturer_penalty(E,L,D,F,T,P),SC2,SC1),
+	retract_current_schedule.
 
+assert_schedule([]).
+assert_schedule([event(E,R,D,H)|Evs]):-
+	exam_duration(E,Duration),
+	F is H + Duration,
+	asserta(c_examDay(E,D)),
+	asserta(c_examRoom(E,R)),
+	asserta(c_examHours(E,H,F)),
+	assert_schedule(Evs).
 
+retract_current_schedule:-
+	retractall(c_examDay(E,D)),
+	retractall(c_examRoom(E,R)),
+	retractall(c_examHours(E,H,F)).
+
+exam_person(Exam,PID):-
+	exam_lecturer(Exam,PID).
+exam_person(Exam,PID):-
+	takes_exam(PID,Exam).
+
+lunch_penalty(Exam,PID,Penalty):-
+	c_examHours(Exam,Start,Stop),
+	overlap(Start,Stop,12,13),
+	exam_person(Exam,PID),
+	sc_lunch_break(PID,Penalty).
+
+lecturer_penalty(Exam,LID,Day,From,Till,Penalty):-
+	lecturer(LID,_),
+	sc_no_exam_in_period(LID,Day,From,Till,Penalty),
+	exam_lecturer(Exam,LID),
+	c_examHours(Exam,Start,Stop),
+	overlap(Start,Stop,From,Till).
 
 schedule([],[]).
 schedule([E|Es],Schedule):-
