@@ -3,9 +3,7 @@
 :- dynamic student_count/1.
 :- dynamic lecturer_count/1.
 :- dynamic setup_completed/0.
-:- dynamic c_examHours/3.
-:- dynamic c_examRoom/2.
-:- dynamic c_examDay/2.
+:- dynamic c_event/4.
 :- discontiguous
 	 sc_lunch_break/2,
 	 sc_not_in_period/6,
@@ -229,18 +227,14 @@ is_valid([event(Exam,Room,Day,Hour)|Events],Exams,Reservations):-
 %%%%%
 
 assert_schedule([]).
-assert_schedule([event(E,R,D,H)|Evs]):-
+assert_schedule([event(E,_,D,H)|Evs]):-
 	duration(E,Duration),
 	F is H + Duration,
-	asserta(c_examDay(E,D)),
-	asserta(c_examRoom(E,R)),
-	asserta(c_examHours(E,H,F)),
+	asserta(c_event(E,D,H,F)),
 	assert_schedule(Evs).
 
 retract_current_schedule:-
-	retractall(c_examDay(_,_)),
-	retractall(c_examRoom(_,_)),
-	retractall(c_examHours(_,_,_)).
+	retractall(c_event(_,_,_,_)).
 
 violates_sc(schedule(EventList),SCL):-
 	setup_assertions,
@@ -263,26 +257,24 @@ violates_sc(sc_not_in_period(PID,EID,Day,From,Till,Penalty)):-
 	exam_between(EID,Day,From,Till).
 
 violates_sc(sc_same_day(PID,EID1,EID2,Penalty)):-
-	c_examDay(EID1,Day),
-	c_examDay(EID2,Day),
+	c_event(EID1,Day,_,_),
+	c_event(EID2,Day,_,_),
 	EID1 @< EID2, 
 	shared_exam_person(EID1,EID2,PID),
 	sc_same_day(PID,Penalty).
 
 violates_sc(sc_b2b(PID,EID1,EID2,Penalty)):-
-	c_examDay(EID1,Day),
-	c_examDay(EID2,Day),
-	c_examHours(EID1,_,Hour),
-	c_examHours(EID2,Hour,_),
+	c_event(EID1,Day,_,Hour),
+	c_event(EID2,Day,Hour,_),
 	shared_exam_person(EID1,EID2,PID),
 	sc_b2b(PID,Penalty).
 
 violates_sc(sc_study_time(SID,DTL,TotalPenalty)):-
 	first_day(FD),
 	bagof((D,T),
-		  E^(takes_exam(SID,E),
-		     c_examDay(E,D),
-		     sc_study_time(E,T)),
+		  E^H^F^(takes_exam(SID,E),
+		         c_event(E,D,H,F),
+		         sc_study_time(E,T)),
 		  UnsortedExams),
 	sort(1,@=<,UnsortedExams,Exams),
 	student_penalty(Exams,FD,0,DTL),
@@ -293,9 +285,9 @@ violates_sc(sc_study_time(SID,DTL,TotalPenalty)):-
 violates_sc(sc_correction_time(LID,DTL,TotalPenalty)):-
 	last_day(LD),
 	bagof((D,T),
-		   E^(exam_lecturer(E,LID),
-		   	  c_examDay(E,D),
-		   	  sc_correction_time(E,T)),
+		   E^H^F^(exam_lecturer(E,LID),
+		          c_event(E,D,H,F),
+		   	      sc_correction_time(E,T)),
 		   UnsortedExams),
 	sort(1,@>=,UnsortedExams,Exams),
 	lecturer_penalty(Exams,LD,0,DTL),
@@ -309,8 +301,7 @@ exam_person(Exam,PID):-
 	takes_exam(PID,Exam).
 
 exam_between(EID,Day,From,Till):-
-	c_examDay(EID,Day),
-	c_examHours(EID,Start,Stop),
+	c_event(EID,Day,Start,Stop),
 	overlap(Start,Stop,From,Till).
 
 shortage(Available,Needed,Shortage):-
@@ -404,6 +395,19 @@ optimal_schedules([(S,C)|Schedules],Cost,Current,Optimals):-
 	!, %green cut
 	optimal_schedules(Schedules,C,[S],Optimals).
 
+
+mutate([],[],_).
+mutate([Event|Events],[Event|MEvents],Es):-
+	random(X),
+	X > 0.2,
+	!,
+	mutate(Events,MEvents,[Event|Es]).
+mutate([event(E,R1,D1,H1)|Events],[event(E,R2,D2,H2)|MEvents],Evs):-
+	append(Evs,Events,FullEvents),
+	is_valid(schedule([event(E,R2,D2,H2)|FullEvents])),
+	(R1\=R2 ; D1\=D2 ; H1\=H2), %something should be different
+	!, %we only care for one mutation
+	mutate(Events,MEvents,[event(E,R2,D2,H2)|Evs]).
 
 
 
