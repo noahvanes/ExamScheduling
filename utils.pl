@@ -1,51 +1,41 @@
+:- module(utils,
+	[remove_one/3,
+	 overlap/4,
+	 member/2,
+	 max/3,
+	 min/3,
+	 take/3]).
 
-available_timeslots(T):-
-	findall(room(Room,AvailableSlots),
-			bagof(slot(Day,Start,Stop),
-			      availability(Room,Day,Start,Stop),
-			      AvailableSlots),
-			T).
 
-% removeOne(?List, ?E, ?NewList) <- remove first occurence of E
-%									in List, resulting in NewList
-removeOne([E|R],E,R).
-removeOne([H|T],E,[H|Z]):-
+%%% UTILS %%%
+
+remove_one([E|R],E,R).
+remove_one([H|T],E,[H|Z]):-
 	H \= E,
-	removeOne(T,E,Z).
+	remove_one(T,E,Z).
 
-takes_exam(Student,Exam):-
-	has_exam(Course,Exam),
-	follows(Student,Course).
+overlap(H1,F1,H2,_):- 
+	H1 =< H2, 
+	F1 > H2.
+overlap(H1,_,H2,F2):- 
+	H1 > H2,
+	H1 < F2.
 
-required_capacity(Exam,RequiredCapacity):-
-	findall(S,takes_exam(S,Exam),Students),
-	length(Students,RequiredCapacity).
+member(E,[E|_]).
+member(E,[_|T]):-
+	member(E,T).
 
+max(M,N,M):- M>=N,!.
+max(M,N,N):- M<N.
 
+min(M,N,M):- M=<N,!.
+min(M,N,N):- M>N.
 
-
-is_valid(schedule(EventList)):-
-	findall(E,exam(E,_),Exams),
-	available_timeslots(FreeSlots),
-	is_valid(EventList,Exams,FreeSlots,[]).
-
-
-is_valid([],[],_,_).
-is_valid([event(Exam,Room,Day,Hour)|Events],Exams,Slots,Reservations):-
-	remove_one(Exams,Exam,Remaining),
-	!, %red cut <- consider only one exam each time
-	exam_students(Exam, Students),
-	exam_lecturer(Exam, Lecturer),
-	length(Students, ReqCapacity),
-	free_slot(Slots,slot(Room,Day,Hour,End),NewSlots),
-	
-
-
-	room_suitable(Exam,Room),
-	room_available(Exam,Room,Day,Hour,End),
-	NewEntry = exam(Exam,Room,Day,Hour,End),
-	not(conflict(NewEntry,Reservations)),
-	is_valid(Events,Remaining,[NewEntry|Reservations]).
-
+take([],_,[]).
+take(_,0,[]).
+take([H|T],N,[H|Z]):-
+	N > 0,
+	N1 is N - 1,
+	take(T,N1,Z).
 
 

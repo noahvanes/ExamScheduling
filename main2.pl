@@ -1,129 +1,12 @@
-:- dynamic share_students/3.
-:- dynamic required_capacity/2.
-:- dynamic student_count/1.
-:- dynamic lecturer_count/1.
-:- dynamic setup_completed/0.
+
 :- dynamic c_event/4.
-:- discontiguous
-	 sc_lunch_break/2,
-	 sc_not_in_period/6,
-	 sc_same_day/2,
-	 sc_b2b/2.
 
-lecturer(l1,'Mr John').
-lecturer(l2,'Mr Francis').
-lecturer(l3,'Mr Josef').
-lecturer(l4,'Ms Ann').
+:- use_module(dataset_large).
+:- use_module(kb_assertions).
+:- use_module(utils).
 
-student(s1,'Anna').
-student(s2,'Max').
-student(s3,'Bill').
-student(s4,'Carla').
+%:- use_module(library(sort)).
 
-course(c1,'Math').
-course(c2,'Science & Technology').
-course(c3,'Philosophy').
-course(c4,'Religion').
-course(c5,'English').
-
-exam(e1,'Math').
-exam(e2,'Science & Technology').
-exam(e3,'Philosophy').
-exam(e4,'Religion').
-exam(e5,'English').
-
-room(r1,'Small room').
-room(r2,'Large room').
-
-has_exam(c1,e1).
-has_exam(c2,e2).
-has_exam(c3,e3).
-has_exam(c4,e4).
-has_exam(c5,e5).
-
-duration(Exam,2) :- exam(Exam,_). %every exam takes 2 hours
-
-follows(Student,c1) :- student(Student,_). %every student follows Math
-follows(Student,c2) :- student(Student,_). %every student follows Science & Technology
-follows(s2,c3). %Max follows philosophy
-follows(s3,c3). %Bill follows philosophy
-follows(s1,c4). %Anna follows religion
-follows(s4,c4). %Carla follows religion
-follows(Student,c5) :- student(Student,_). %every student follows Languages
-
-teaches(l1,c1).
-teaches(l1,c2).
-teaches(l2,c3).
-teaches(l3,c4).
-teaches(l4,c5).
-
-capacity(r1,2).
-capacity(r2,4).
-
-%first and last day of exam period
-first_day(1).
-last_day(5).
-
-%Rooms are available
-availability(Room,1,10,12) :- room(Room,_). %Day 1, all rooms are available from 10 to 12
-availability(Room,2,10,12) :- room(Room,_). %Day 2, all rooms are available from 10 to 12
-availability(Room,3,10,15) :- room(Room,_). %Day 3, all rooms are available from 10 to 15
-availability(Room,4,10,12) :- room(Room,_). %Day 4, all rooms are available from 10 to 12
-availability(Room,5,10,12) :- room(Room,_). %Day 5, all rooms are available from 10 to 12
-
-%soft-constraints
-%lecturer
-sc_lunch_break(L,1) :- lecturer(L,_). %lecturers prefer a lunchbreak
-sc_b2b(L,2) :- lecturer(L,_). %lecturers prefer not to have exams back 2 back
-sc_no_exam_in_period(l3,3,0,24,5). %Josef prefers no exams at day 3
-sc_no_exam_in_period(l4,Day,0,12,1) :- first_day(FirstDay),last_day(LastDay),between(FirstDay,LastDay,Day). %Ann prefers no exams before noon
-sc_no_exam_in_period(l1,Day,14,24,5) :- first_day(FirstDay),last_day(LastDay),between(FirstDay,LastDay,Day). %John prefers no exams after 14h
-sc_not_in_period(l1,e2,1,0,24,3). %Science & technology preferably not day 1
-sc_correction_time(e1,2). 
-sc_correction_time(e2,1).
-sc_correction_time(e3,1).
-sc_correction_time(e4,1).
-sc_correction_time(e5,2).
-sc_correction_penalty(L,3) :- lecturer(L,_). %guarantee enough correction time
-
-%student
-sc_lunch_break(S,1) :- student(S,_). %students prefer a lunchbreak
-sc_same_day(S,2) :- student(S,_). %students prefer not to have multiple exams on the same day
-sc_b2b(S,5) :- student(S,_). %students prefer not to have exams back 2 back
-sc_study_time(e1,2). 
-sc_study_time(e2,1).
-sc_study_time(e3,1).
-sc_study_time(e4,1).
-sc_study_time(e5,1).
-sc_study_penalty(S,3) :- student(S,_). %guarantee enough study time
-
-
-%%% PROJECT STARTS HERE %%%
-
-
-%%% UTILS
-
-remove_one([E|R],E,R).
-remove_one([H|T],E,[H|Z]):-
-	H \= E,
-	remove_one(T,E,Z).
-
-overlap(H1,F1,H2,_):- 
-	H1 =< H2, 
-	F1 > H2.
-overlap(H1,_,H2,F2):- 
-	H1 > H2,
-	H1 < F2.
-
-member(E,[E|_]).
-member(E,[_|T]):-
-	member(E,T).
-
-max(M,N,M):- M>=N,!.
-max(M,N,N):- M<N.
-
-min(M,N,M):- M=<N,!.
-min(M,N,N):- M>N.
 
 %%% EXAM PROPERTIES
 
@@ -158,37 +41,7 @@ takes_exams(S,E1,E2):-
 	takes_exam(S,E2),
 	E1 \= E2.
 
-%%% RUN-TIME ASSERTIONS
 
-assert_shared_exam_students:-
-	bagof(S,takes_exams(S,E1,E2),L),
-	asserta(share_students(E1,E2,L)).
-
-assert_exam_capacity:-
-	bagof(S,takes_exam(S,E),L),
-	length(L,N),
-	asserta(required_capacity(E,N)).
-
-assert_student_count:-
-	findall(_,student(_,_),L),
-	length(L,N),
-	asserta(student_count(N)).
-
-assert_lecturer_count:-
-	findall(_,lecturer(_,_),L),
-	length(L,N),
-	asserta(lecturer_count(N)).
-
-setup_assertions:-
-	setup_completed,
-	!. %green cut	
-setup_assertions:-
-	not(setup_completed),
-	assert_student_count,
-	assert_lecturer_count,
-	findall(_,assert_exam_capacity,_),
-	findall(_,assert_shared_exam_students,_),
-	asserta(setup_completed).
 
 %%% IS_VALID
 
@@ -211,8 +64,8 @@ mutual_exclusive(E1,E2):-
 
 is_valid(schedule(EventList)):-
 	setup_assertions,
-	findall(E,exam(E,_),Exams),
-	is_valid(EventList,Exams,[]).
+	exams(FullExamList),
+	is_valid(EventList,FullExamList,[]).
 
 is_valid([],[],_).
 is_valid([event(Exam,Room,Day,Hour)|Events],Exams,Reservations):-
@@ -224,7 +77,31 @@ is_valid([event(Exam,Room,Day,Hour)|Events],Exams,Reservations):-
 	not(conflict(NewEntry,Reservations)),
 	is_valid(Events,Remaining,[NewEntry|Reservations]).
 
-%%%%%
+
+%%% EXTRA: completing incomplete/partial schedules %%%
+
+%% scheduled_exams(+Events,-Exams,-Remaining) <- Exams are the corresponding
+%%												 exam entries for the partial
+%%												 schedule of Events; Remaining
+%%												 is the list of exams that still
+%%												 need to be scheduled after this.
+scheduled_exams([],[],E):- 
+	exams(E).
+scheduled_exams([event(E,R,D,H)|T],[exam(E,R,D,H,F)|Z],Remaining):-
+	scheduled_exams(T,Z,OldRemaining),
+	remove_one(OldRemaining,E,Remaining),
+	duration(E,Duration),
+	F is H + Duration.
+
+%% complete(?Events,+PartialSchedule) <- Given a valid PartialSchedule
+%%										 of exams, Events complete this
+%%										 schedule so to include all exams
+complete(Events,PartialSchedule):-
+	scheduled_exams(PartialSchedule,Entries,Remaining),
+	is_valid(Events,Remaining,Entries).
+
+
+%%% ASSERTING SCHEDULES %%%
 
 assert_schedule([]).
 assert_schedule([event(E,_,D,H)|Evs]):-
@@ -238,6 +115,9 @@ retract_current_schedule:-
 
 violates_sc(schedule(EventList),SCL):-
 	setup_assertions,
+	violates_sc(EventList,SCL).
+
+violates_sc(EventList,SCL):-
 	assert_schedule(EventList),
 	findall(SC,violates_sc(SC),SCL),
 	retract_current_schedule.
@@ -343,6 +223,18 @@ penalty(SC,Penalty):-
 person(SC,PID):- 	
 	arg(1,SC,PID).
 
+compare_sc(Delta,SC1,SC2):-
+	penalty(SC1, P1),
+	penalty(SC2, P2),
+	(P1 < P2 -> Delta = > ;
+	 P1 = P2 -> Delta = = ;
+	 otherwise -> Delta = <).
+
+violates_sorted_sc(Schedule,SC):-
+	violates_sc(Schedule,UnsortedSC),
+	predsort(compare_sc,UnsortedSC,SC).
+
+
 %%% 
 
 cost(Schedule,Cost):-
@@ -372,6 +264,7 @@ constraint_costs([C|CS],CurrentSC,CurrentLC,SC,LC):-
 	NewLC is CurrentLC + Penalty,
 	constraint_costs(CS,CurrentSC,NewLC,SC,LC).
 
+
 %%%
 
 is_optimal(X):-
@@ -386,28 +279,116 @@ optimal_schedules([],_,Optimals,Optimals).
 optimal_schedules([(S,C)|Schedules],C,Current,Optimals):-
 	!, %green cut
 	optimal_schedules(Schedules,C,[S|Current],Optimals).
-optimal_schedules([(S,C)|Schedules],Cost,Current,Optimals):-
+optimal_schedules([(_,C)|Schedules],Cost,Current,Optimals):-
 	Cost < C,
 	!, %green cut
 	optimal_schedules(Schedules,Cost,Current,Optimals).
-optimal_schedules([(S,C)|Schedules],Cost,Current,Optimals):-
+optimal_schedules([(S,C)|Schedules],Cost,_,Optimals):-
 	C < Cost,
 	!, %green cut
 	optimal_schedules(Schedules,C,[S],Optimals).
 
 
-mutate([],[],_).
-mutate([Event|Events],[Event|MEvents],Es):-
-	random(X),
-	X > 0.2,
+
+
+
+
+
+
+%% a random split
+
+random_split([],_,[],[]).
+random_split([X|T],Rate,S1,[X|S2]):-
+	maybe(Rate),
 	!,
-	mutate(Events,MEvents,[Event|Es]).
-mutate([event(E,R1,D1,H1)|Events],[event(E,R2,D2,H2)|MEvents],Evs):-
-	append(Evs,Events,FullEvents),
-	is_valid(schedule([event(E,R2,D2,H2)|FullEvents])),
-	(R1\=R2 ; D1\=D2 ; H1\=H2), %something should be different
-	!, %we only care for one mutation
-	mutate(Events,MEvents,[event(E,R2,D2,H2)|Evs]).
+	random_split(T,Rate,S1,S2).
+random_split([X|T],Rate,[X|S1],S2):-
+	random_split(T,Rate,S1,S2).
+
+%% a random day
+
+
+mutation_rate(0.03).
+
+mutation(EventList,MutatedEventList):-
+	mutation_rate(MR),
+	random_split(EventList,MR,Keep,Drop),
+	find((random_events(Drop,MutatedEvents),
+	      complete(MutatedEvents,Keep))),
+	!, %search for only one mutation
+	append(MutatedEvents,Keep,MutatedEventList).
+
+
+%% THE REAL ATTEMPT!
+
+random_day(D):-
+	first_day(FD),
+	last_day(LD),
+	random_between(FD,LD,D).
+
+random_room(E,R):-
+	findall(RID,room_suitable(E,RID),Rooms),
+	random_member(R,Rooms).
+
+random_hour(E,R,D,H):-
+	findall((S,F),availability(R,D,S,F),Slots),
+	random_member((Start,Stop),Slots),
+	duration(E,Duration),
+	LatestStart is Stop - Duration,
+	random_between(Start,LatestStart,H).
+
+random_events([],[]).
+random_events([event(E,_,_,_)|T],[event(E,R,D,H)|Z]):-
+	random_day(D),
+	random_room(E,R),
+	random_hour(E,R,D,H),
+	random_events(T,Z).
+
+%% find
+find(X):- 
+	call(X).
+find(X):- 
+	find(X).
+
+%%
+selection(Schedules,MaxSize,Survivors):-
+	sort(2,@=<,Schedules,SortedSchedules),
+	take(SortedSchedules,MaxSize,Survivors).
+
+
+find_heuristically(Schedule,Cost,T):-
+	get_time(StartTime),
+	MaxTime is StartTime + T,
+	is_valid(schedule(PopulationOrigin)),
+	cost(schedule(PopulationOrigin),C),
+	!,
+	evolution([(PopulationOrigin,C)],100,MaxTime,Schedule,Cost).
+
+evolution([(Schedule,Cost)|_],_,MaxTime,Schedule,Cost):-
+	get_time(CurrentTime),
+	CurrentTime >= MaxTime,
+	!.
+
+evolution(Population,MaxSize,MaxTime,Schedule,Cost):-
+	findall((Schedule,Cost),
+			(member((Original,_),Population),
+			 mutation(Original,Schedule),
+			 cost(schedule(Schedule),Cost)),
+			OversizedNextGeneration,
+			Population),
+	selection(OversizedNextGeneration,MaxSize,NextGeneration),
+	evolution(NextGeneration,MaxSize,MaxTime,Schedule,Cost).
+
+
+	
+
+
+
+
+
+
+
+
 
 
 
