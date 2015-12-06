@@ -4,7 +4,7 @@
 	 member/2,
 	 max/3,
 	 min/3,
-	 take/3]).
+	 take/4]).
 
 
 %%% UTILS %%%
@@ -31,11 +31,12 @@ max(M,N,N):- M<N.
 min(M,N,M):- M=<N,!.
 min(M,N,N):- M>N.
 
-take([],_,[]).
-take(_,0,[]).
-take([H|T],N,[H|Z]):-
+%result of first part is difference list
+take(X,0,A-A,X):-!.
+take([],_,A-A,[]):-!.
+take([H|T],N,[H|Z]-A,R):-
 	N > 0,
 	N1 is N - 1,
-	take(T,N1,Z).
+	take(T,N1,Z-A,R).
 
 
