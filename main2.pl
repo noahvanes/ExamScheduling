@@ -1,21 +1,31 @@
 :- dynamic c_event/4.
 
-:- use_module(dataset_large).
+:- use_module(dataset_short).
 :- use_module(kb_assertions).
 :- use_module(utils).
-
-%:- use_module(library(sort)).
 
 
 %%% LAST TRY
 
-goal((0,_,_)).
+goal(([],E),E).
 
-initial_state((N,E,[])):-
-	exams(E),
-	length(E,N).
+exams([],[]).
+exams([(E,_)|T],[E|Z]):-
+	exams(T,Z).
 
-state_cost((N,_,E),C):-
+initial_state((E,[])):-
+	findall((E,N),
+			(bagof(S,takes_exam(S,E),L),
+			 length(L,N)),
+			Exams),
+	sort(2,@>=,Exams,SortedExams),
+	exams(SortedExams,E).
+
+%alternative(Exams,AlternativeExams):-	
+%	random_select(exam(E1,_,_,_,_),Exams,Remaining),
+%	successor(([E1],Remaining),([],AlternativeExams)).
+
+state_cost((_,E),C):-
 	exams_cost(E,C).
 
 successor(([Exam|R],Exams),(R,[NewEntry|Exams])):-
@@ -24,10 +34,17 @@ successor(([Exam|R],Exams),(R,[NewEntry|Exams])):-
 	NewEntry = exam(Exam,Room,Day,Hour,End),
 	not(conflict(NewEntry,Exams)).
 
+random_successor(([Exam|R],Exams),(R,[NewEntry|Exams])):-
+	find_random(room_suitable(Exam,Room)),
+	find_random(room_available(Exam,Room,Day,Hour,End)),
+	NewEntry = exam(Exam,Room,Day,Hour,End),
+	not(conflict(NewEntry,Exams)).
+
 find(schedule(S),T):-
-	% register deadline
+	% register deadlines
 	get_time(StartTime),
-	Deadline is StartTime + T,
+	Deadline1 is StartTime + T/2,
+	Deadline2 is StartTime + T,
 	% we need a dummy schedule to compare to
 	is_valid(schedule(InitEvents)),
 	!, % only one schedule needed
@@ -35,36 +52,51 @@ find(schedule(S),T):-
 	exams_cost(InitExams,InitCost),
 	% start the search
 	initial_state(I),
-	search([(I,0)],Deadline,InitExams,InitCost,X),
+	search([(I,0)],Deadline1,InitExams,InitCost,Exams,Cost),
+	beam_search([(Exams,Cost)],50,Deadline2,X),
 	% output in desired format
 	schedule(X,S).
 
-
-%search(_,Deadline,X,_,X):-
-%	get_time(CurrentTime),
-%	CurrentTime >= Deadline,
-%	!. %stop the search ...
-search([(State,C)|R],Deadline,_,BestC,X):-
-	goal(State),
-	C < BestC,
-	!,
-	write('new optimal solution: '), write(C), nl,
-	search(R,Deadline,State,C,X).
-search([(_,C)|R],Deadline,BestS,BestC,X):-
+search(_,Deadline,X,C,X,C):-
+	get_time(CurrentTime),
+	CurrentTime >= Deadline,
+	!. %stop the search ...
+search([(_,C)|R],Deadline,BestS,BestC,X,C):-
 	C >= BestC,
 	!,
-	search(R,Deadline,BestS,BestC,X).
-search([(State,_)|R],Deadline,BestS,BestC,X):-
+	search(R,Deadline,BestS,BestC,X,C).
+search([(State,SC)|R],Deadline,_,BestC,X,C):-
+	goal(State,SE),
+	SC < BestC,
+	!,
+	search(R,Deadline,SE,SC,X,C).
+search([(State,_)|R],Deadline,BestS,BestC,X,C):-
 	findall((NewState,NewCost),
 			(successor(State,NewState),
 		 	 state_cost(NewState,NewCost)),
 			Children),
 	sort(2,@=<,Children,SortedChildren),
 	append(SortedChildren,R,NewAgenda),
-	!, % tail call optimization
-	search(NewAgenda,Deadline,BestS,BestC,X).
-search([],_,X,_,X). % unlikely, but possible for small datasets
+	!,
+	search(NewAgenda,Deadline,BestS,BestC,X,C).
+search([],_,X,C,X,C).
 
+beam_search([(X,_)|_],_,Deadline,X):-
+	get_time(CurrentTime),
+	CurrentTime >= Deadline,
+	!. % stop searching...
+beam_search(CurrentBeam,N,Deadline,X):-
+	findall((NewExams,NewCost),
+			(member((Exams,_),CurrentBeam),
+			 mutation(Exams,NewExams),
+			 !, % only one mutation per schedule
+			 exams_cost(NewExams,NewCost)),
+			CandidateStates,
+			CurrentBeam),
+	sort(2,@<,CandidateStates,SortedStates),
+	take(SortedStates,N,NewBeam-[],_),
+	!,
+	beam_search(NewBeam,N,Deadline,X).
 
 %%% EXAM PROPERTIES
 
@@ -138,7 +170,7 @@ is_valid([event(Exam,Room,Day,Hour)|Events],Exams,Reservations):-
 
 %%% EXTRA: repairing broken schedules after mutation/cross-over %%%
 
-random_result(X):-
+find_random(X):-
 	findall(X,X,Results),
 	random_permutation(Results,RandomResults),
 	member(X,RandomResults).
@@ -159,35 +191,12 @@ schedule([exam(E,R,D,H,F)|Exams],[event(E,R,D,H)|Events]):-
 	duration(E,Duration),
 	F is H + Duration.
 
-fix(X-X,[],_). %we only care for one fix
-fix([NewEntry|Events]-X,[E|Exams],Valid):-
-	NewEntry = exam(E,R,D,H,F),
-	random_result(room_suitable(E,R)),
-	random_result(room_available(E,R,D,H,F)),
-	not(conflict(NewEntry,Valid)),
-	fix(Events-X,Exams,[NewEntry|Valid]).
-
 repair(Schedule,FixedSchedule):-
 	random_permutation(Schedule,Events),
 	check(Events,Valid,Conflicting),
 	fix(Full-Valid,Conflicting,Valid),
 	schedule(Full,FixedSchedule),
 	!. % we only want one reparation
-
-complete(Schedule,Missing,FixedSchedule):-
-	schedule(Exams,Schedule),
-	fix(NewExams-[],Missing,Exams),
-	schedule(NewExams,NewEvents),
-	append(NewEvents,Schedule,FixedSchedule),
-	!. % we only want one completion
-
-
-
-	
-
-
-
-
 
 %%% ASSERTING SCHEDULES %%%
 
@@ -244,14 +253,16 @@ violates_sc(sc_b2b(PID,EID1,EID2,Penalty)):-
 
 violates_sc(sc_study_time(SID,DTL,TotalPenalty)):-
 	first_day(FD),
-	bagof((D,T),
-		  E^H^F^(takes_exam(SID,E),
-		         c_event(E,D,H,F),
-		         sc_study_time(E,T)),
+	students_exams(Students,Exams),
+	findall((D,T),
+		  	(member(E,Exams),
+		     c_event(E,D,_,_),
+		     sc_study_time(E,T)),
 		  UnsortedExams),
-	sort(1,@=<,UnsortedExams,Exams),
-	student_penalty(Exams,FD,0,DTL),
+	sort(1,@=<,UnsortedExams,SortedExams),
+	student_penalty(SortedExams,FD,0,DTL),
 	DTL > 0,
+	member(SID,Students),
 	sc_study_penalty(SID,Penalty),
 	TotalPenalty is DTL * Penalty.
 
@@ -316,26 +327,6 @@ penalty(SC,Penalty):-
 person(SC,PID):- 	
 	arg(1,SC,PID).
 
-sc_exam(sc_lunch_break(_,E,_),E).
-sc_exam(sc_no_exam_in_period(_,E,_,_,_,_),E).
-sc_exam(sc_not_in_period(_,E,_,_,_,_),E).
-sc_exam(sc_same_day(_,E,_,_),E).
-sc_exam(sc_same_day(_,_,E,_),E).
-
-actual_penalty(SC,ActualPenalty):-
-	person(SC,PID),
-	student(PID,_),
-	!, %green cut
-	penalty(SC,Penalty),
-	student_count(StudentCount),
-	ActualPenalty is Penalty/StudentCount.
-actual_penalty(SC,ActualPenalty):-
-	person(SC,PID),
-	lecturer(PID,_),
-	penalty(SC,Penalty),
-	lecturer_count(LecturerCount),
-	ActualPenalty is Penalty/LecturerCount.
-
 compare_sc(Delta,SC1,SC2):-
 	penalty(SC1, P1),
 	penalty(SC2, P2),
@@ -346,7 +337,6 @@ compare_sc(Delta,SC1,SC2):-
 violates_sorted_sc(Schedule,SC):-
 	violates_sc(Schedule,UnsortedSC),
 	predsort(compare_sc,UnsortedSC,SC).
-
 
 %%% 
 
@@ -405,167 +395,76 @@ optimal_schedules([(S,C)|Schedules],Cost,_,Optimals):-
 	!, %green cut
 	optimal_schedules(Schedules,C,[S],Optimals).
 
+mutation(Exams,Mutation):-
+	random_select(exam(E,_,_,_,_),Exams,Remaining),
+	random_successor(([E],Remaining),([],Mutation)).
 
-%%% SIMULATED ANNEALING %%%
+%%% printing %%%
 
-find_h(schedule(Schedule),T):-
-	get_time(StartTime),
-	MaxTime is StartTime + T,
-	is_valid(schedule(S)),
-	cost(schedule(S),Cost),
+day_schedule(EventList,Day,DaySchedule):-
+	findall((D,S),
+			bagof((E,R,H),member(event(E,R,D,H),EventList),S),
+			UnsortedSchedules),
+	sort(1,@=<,UnsortedSchedules,Schedules),
+	member((Day,DaySchedule),Schedules).
+
+room_schedule(DaySchedule,Room,RoomSchedule):-
+	bagof((E,H),
+		  member((E,Room,H),DaySchedule),
+		  RoomSchedule).
+
+exam_entry(RoomSchedule,Hour,Exam):-
+	sort(2,@<,RoomSchedule,SortedSlots),
+	member((Exam,Hour),SortedSlots).
+	
+pretty_print_day(Day):-
+	nl,
+	write('*** DAY '),
+	write(Day),
+	write(' ***'),
+	nl.
+
+pretty_print_room(Room):-
+	nl,
+	room(Room,RoomName),
+	write(RoomName),
+	nl.
+
+pretty_print_exam(Hour,Exam):-
+	write(Hour),
+	write(':00 '),
+	exam(Exam,ExamName),
+	exam_lecturer(Exam,LID),
+	lecturer(LID,LecturerName),
+	write(ExamName),
+	write(' ('),
+	write(LecturerName),
+	write(')'),
+	nl.
+
+student_filter(_,[],[]).
+student_filter(SID,[event(E,_,_,_)|T],Z):-
+	not(takes_exam(SID,E)),
 	!,
-	beam_search([(S,Cost)],20,MaxTime,Schedule).
+	student_filter(SID,T,Z).
+student_filter(SID,[E|T],[E|Z]):-
+	student_filter(SID,T,Z).
 
-% when run out of time, we return the 'fittest'
-beam_search([(Schedule,_)|_],_,MaxTime,Schedule):-
-	get_time(CurrentTime),
-	CurrentTime >= MaxTime,
-	!. % time is up; stop searching...
-beam_search(Beam,N,MaxTime,Schedule):-
-	Beam = [(_,LowC)|_], write(LowC), nl,
-	findall((NewSchedule,NewCost),
-			(member((S,_),Beam),
-			 mutation(S,NewSchedule),
-			 cost(schedule(NewSchedule),NewCost)),
-			Candidates,Beam),
-	sort(2,@=<,Candidates,SortedCandidates),
-	take(SortedCandidates,N,NewBeam-[],_),
-	beam_search(NewBeam,N,MaxTime,Schedule).
+pretty_print(schedule(Schedule),SID):-
+	student_filter(SID,Schedule,StudentSchedule),
+	pretty_print(schedule(StudentSchedule)).
 
+pretty_print(schedule(Schedule)):-
+	findall(_,pretty(Schedule),_),
+	nl. % put newline after schedule
 
-
-%%% GENETIC APPROACH %%%
-
-
-crossover(S1,S2,Cross):-
-	length(S1,ExamCount), %TODO: assert statically
-	sort(1,@=<,S1,SortedS1),
-	sort(1,@=<,S2,SortedS2),
-	random_between(0,ExamCount,N),
-	take(SortedS1,N,Child1-RestS2,RestS1),
-	take(SortedS2,N,Child2-RestS1,RestS2),
-	(C = Child1 ; C = Child2),
-	repair(C,Cross).
-
-mutation(EventList,Mutation):-
-	random_select(event(E,_,_,_),EventList,Remaining),
-	complete(Remaining,[E],Mutation).
-
- 
-%%% FITNESS %%%
-
-fitness(Schedule,Fitness):-
-	cost(schedule(Schedule),Cost),
-	Fitness is 1/(1+Cost).
-
-total_fitness([],0).
-total_fitness([(_,F)|Rest],TF):-
-	total_fitness(Rest,FRest),
-	TF is FRest + F.
-
-fittest([Fittest],Fittest).
-fittest([(S1,F1)|R],(SF,FF)):-
-	fittest(R,(SF,FF)),
-	F1 < FF,
-	!. % necessary red cut
-fittest([X|_],X).
-
-%%% INITIAL POPULATION %%%
-
-population_randomness(50).
-population_size(50).
-
-% X is a random schedule after C mutations
-random_schedule(X,C):-	
-	is_valid(schedule(S)),
-	random_schedule(S,C,X).
-
-random_schedule(X,0,X).
-random_schedule(X,C,S):-
-	C > 0,
-	C1 is C - 1,
-	mutation(X,Y),
-	!, % don't backtrack on one mutation
-	random_schedule(Y,C1,S).
-
-initial_population(0,_,[]).
-initial_population(PopSize,Randomness,[(X,F)|Pop1]):-
-	PopSize > 0,
-	PopSize1 is PopSize - 1,
-	initial_population(PopSize1,Randomness,Pop1),
-	random_schedule(X,Randomness),
-	!, % only one random schedule.
-	fitness(X,F).
-
-%%% MATING POOL %%%
-
-% roulette wheel algorithm
-
-selection(Population,TargetSize,Selected):-
-	total_fitness(Population,TotalFitness),
-	selection((Population,Population),TotalFitness,TargetSize,Selected).
-
-selection(_,_,0,[]):- !.
-selection(([],Pop),TF,TS,Selected):-
-	selection((Pop,Pop),TF,TS,Selected).
-selection(([(S,F)|R],P),TF,TS,[S|Selected]):-
-	Odds is F/TF,
-	maybe(Odds),
-	!, % S was selected
-	TS1 is TS - 1,
-	selection((R,P),TF,TS1,Selected).
-selection(([_|R],P),TF,TS,Selected):-
-	selection((R,P),TF,TS,Selected).
-
-offspring([S1,S2|_],S):-
-	crossover(S1,S2,S).
-offspring([_,_|R],Offspring):-
-	offspring(R,Offspring).
-
-%%% GENETIC ALGORITHM %%%
-
-
-find_heuristically(schedule(Schedule),T):-
-	% register maximum delivery time
-	get_time(StartTime),
-	MaxTime is StartTime + T,
-	% initialize initial population
-	population_randomness(Randomness),
-	population_size(PopSize),
-	initial_population(PopSize,Randomness,Pop),
-	% start evolution of first generation
-	evolution(Pop,PopSize,MaxTime,Schedule).
-
-% when run out of time, we return the 'fittest'
-evolution(Pop,_,MaxTime,Fittest):-
-	get_time(CurrentTime),
-	CurrentTime >= MaxTime,
-	!,
-	fittest(Pop,(Fittest,_)).
-
-evolution(Pop,PopSize,MaxTime,Schedule):-
-	length(Pop,N), 
-	write('current generation size: '), write(N), nl,
-	%findall((Mutation,Fitness),
-	%		(member((S,_),Pop),
-	%		 mutation(S,Mutation),
-	%		 fitness(Mutation,Fitness)),
-	%		Full,Pop),
-	selection(Pop,PopSize,MatingPool),
-	findall((Schedule,Fitness),
-			(offspring(MatingPool,Child),
-			 mutation(Child,Schedule),
-			 fitness(Schedule,Fitness)),
-			NextGeneration_),
-	%sort(2,@>,Pop2,SortedSchedules),
-	%take(SortedSchedules,PopSize,NextGeneration-[],_),
-	random_permutation(NextGeneration_,NextGeneration),
-	evolution(NextGeneration,PopSize,MaxTime,Schedule).
-
-
-
-
-
+pretty(EventList):-
+	day_schedule(EventList,Day,DaySchedule),
+	pretty_print_day(Day),
+	room_schedule(DaySchedule,Room,RoomSchedule),
+	pretty_print_room(Room),
+	exam_entry(RoomSchedule,Hour,Exam),
+	pretty_print_exam(Hour,Exam).
 
 
 

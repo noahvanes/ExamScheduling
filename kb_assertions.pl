@@ -3,6 +3,7 @@
 	 exams/1,
 	 share_students/3,
 	 required_capacity/2,
+	 students_exams/2,
 	 student_count/1,
 	 lecturer_count/1]).
 
@@ -10,6 +11,7 @@
 	setup_completed/0,
 	share_students/3,
 	required_capacity/2,
+	students_exams/2,
 	student_count/1,
 	lecturer_count/1,
 	exams/1.
@@ -25,6 +27,13 @@ assert_exam_capacity:-
 	bagof(S,takes_exam(S,E),L),
 	length(L,N),
 	asserta(required_capacity(E,N)).
+
+assert_students_exams:-
+	bagof(Student,
+		  N^(student(Student,N),
+		  	 findall(E,takes_exam(Student,E),Exams)),
+		  Students),
+	asserta(students_exams(Students,Exams)).
 
 assert_all_exams:-
 	findall(E,exam(E,_),Exams),
@@ -50,4 +59,5 @@ setup_assertions:-
 	assert_lecturer_count,
 	findall(_,assert_exam_capacity,_),
 	findall(_,assert_shared_exam_students,_),
+	findall(_,assert_students_exams,_),
 	asserta(setup_completed).
