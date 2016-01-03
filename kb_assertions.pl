@@ -61,3 +61,5 @@ setup_assertions:-
 	findall(_,assert_shared_exam_students,_),
 	findall(_,assert_students_exams,_),
 	asserta(setup_completed).
+
+%% LOAD DATA
