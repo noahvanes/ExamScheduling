@@ -61,8 +61,8 @@ search(_,Deadline,X,C,X,C):-
 	get_time(CurrentTime),
 	CurrentTime >= Deadline,
 	!. %stop the search ...
-search([(_,C)|R],Deadline,BestS,BestC,X,C):-
-	C >= BestC,
+search([(_,SC)|R],Deadline,BestS,BestC,X,C):-
+	SC >= BestC,
 	!,
 	search(R,Deadline,BestS,BestC,X,C).
 search([(State,SC)|R],Deadline,_,BestC,X,C):-
@@ -94,7 +94,7 @@ beam_search(CurrentBeam,N,Deadline,X):-
 			CandidateStates,
 			CurrentBeam),
 	sort(2,@<,CandidateStates,SortedStates),
-	take(SortedStates,N,NewBeam-[],_),
+	take(SortedStates,N,NewBeam,_),
 	!,
 	beam_search(NewBeam,N,Deadline,X).
 
@@ -396,8 +396,10 @@ optimal_schedules([(S,C)|Schedules],Cost,_,Optimals):-
 	optimal_schedules(Schedules,C,[S],Optimals).
 
 mutation(Exams,Mutation):-
-	random_select(exam(E,_,_,_,_),Exams,Remaining),
-	random_successor(([E],Remaining),([],Mutation)).
+	random_select(exam(E1,_,_,_,_),Exams,R1),
+	random_select(exam(E2,_,_,_,_),R1,R2),
+	random_successor(([E1,E2],R2),IntermediateState),
+	random_successor(IntermediateState,([],Mutation)).
 
 %%% printing %%%
 
