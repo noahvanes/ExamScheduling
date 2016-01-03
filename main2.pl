@@ -4,6 +4,77 @@
 :- use_module(kb_assertions).
 :- use_module(utils).
 
+%%% weighted_random
+
+fitness(Cost,Fitness):-
+	Fitness is 1/(1+(Cost*Cost*Cost*Cos)).
+
+remove_schedule([(S,_)|R],S,R):-
+	!.
+remove_schedule([H|R],S,[H|Z]):-
+	remove_schedule(R,S,Z).
+
+weighted_random(L,Schedule):-
+	normalize(L,NormalizedL),
+	random_prob(NormalizedL,S),
+	(Schedule = S;
+		(remove_schedule(L,S,R),
+		 weighted_random(R,Schedule))).
+
+normalize(L,NL):-
+	normalize(L,0,_,NL).
+normalize([],X,X,[]).
+normalize([(S,C)|R],Current,Total,[(S,NormF)|NL]):-
+	fitness(C,F),
+	NewCurrent is Current + F,
+	normalize(R,NewCurrent,Total,NL),
+	NormF is F / Total.
+
+random_prob(L,S):-
+	random(P),
+	random_prob(L,0,P,S).
+random_prob([(S,C)|R],Prev,Prob,Selected):-
+	Current is Prev + C,
+	(Prob =< Current -> 
+		Selected = S ; 
+		random_prob(R,Current,Prob,Selected)).
+
+
+random_guess(schedule(S)):-
+	initial_state(I),
+	random_search(I,X),
+	!, %only one guess!
+	schedule(X,S).
+
+random_search(X,Exams):- 
+	goal(X,Exams).
+random_search(X,S):-
+	findall((S,C), (successor(X,S),state_cost(S,C)), Children),
+	weighted_random(Children,Child),
+	random_search(Child,S).
+
+find_randomly(S,T):-
+	get_time(CurrentTime),
+	Deadline is CurrentTime + T,
+	find_randomly(S,Deadline,999,[]).
+
+find_randomly((BS,BC),D,BC,BS):-
+	get_time(T),
+	T > D,
+	!.
+find_randomly(S,D,BC,_):-
+	random_guess(RS),
+	cost(RS,RC),
+	write("guess: "),write(RC),nl,
+	RC < BC,
+	!,
+	write("BEST: "),write(RC),nl,
+	find_randomly(S,D,RC,RS).
+find_randomly(S,D,BC,BS):-
+	find_randomly(S,D,BC,BS).
+
+
+
 
 %%% LAST TRY
 
@@ -53,7 +124,7 @@ find(schedule(S),T):-
 	% start the search
 	initial_state(I),
 	search([(I,0)],Deadline1,InitExams,InitCost,Exams,Cost),
-	beam_search([(Exams,Cost)],50,Deadline2,X),
+	beam_search([(Exams,Cost)],10,Deadline2,X),
 	% output in desired format
 	schedule(X,S).
 
@@ -89,10 +160,8 @@ beam_search(CurrentBeam,N,Deadline,X):-
 	findall((NewExams,NewCost),
 			(member((Exams,_),CurrentBeam),
 			 mutation(Exams,NewExams),
-			 !, % only one mutation per schedule
 			 exams_cost(NewExams,NewCost)),
-			CandidateStates,
-			CurrentBeam),
+			CandidateStates),
 	sort(2,@<,CandidateStates,SortedStates),
 	take(SortedStates,N,NewBeam,_),
 	!,
@@ -396,10 +465,8 @@ optimal_schedules([(S,C)|Schedules],Cost,_,Optimals):-
 	optimal_schedules(Schedules,C,[S],Optimals).
 
 mutation(Exams,Mutation):-
-	random_select(exam(E1,_,_,_,_),Exams,R1),
-	random_select(exam(E2,_,_,_,_),R1,R2),
-	random_successor(([E1,E2],R2),IntermediateState),
-	random_successor(IntermediateState,([],Mutation)).
+	random_select(exam(E1,_,_,_,_),Exams,Remaining),
+	successor(([E1],Remaining),([],Mutation)).
 
 %%% printing %%%
 
