@@ -11,13 +11,12 @@
 	 room_suitable/2,
 	 room_available/5,
 	 schedule/2,
-	 mutual_exclusive/2,
 	 conflict/2]).
 
 
 %%% IMPORTS %%%
 
-:- use_module(setup, [required_capacity/2, share_students/3]).
+:- use_module(setup, [required_capacity/2, share_student/3]).
 :- use_module(utils, [overlap/4]).
 
 
@@ -97,7 +96,7 @@ mutual_exclusive(E1,E2):-
 	exam_lecturer(E1,L),
 	exam_lecturer(E2,L).
 mutual_exclusive(E1,E2):-
-	share_students(E1,E2,_).
+	share_student(E1,E2,_).
 
 %% conflict(+Exam,+ExamSchedule)
 %%     checks if a scheduled Exam cause a conflict with an existing ExamSchedule.

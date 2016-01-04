@@ -9,15 +9,14 @@
 :- module(setup,
 	[setup_assertions/0,
 	 exams/1,
-	 share_students/3,
+	 share_student/3,
 	 required_capacity/2,
 	 students_exams/2,
 	 student_count/1,
 	 lecturer_count/1]).
 
 :- dynamic 
-	setup_completed/0,
-	share_students/3,
+	share_student/3,
 	required_capacity/2,
 	students_exams/2,
 	student_count/1,
@@ -34,20 +33,16 @@
 
 %% setup_assertions
 %%     Used to setup memoized data for a loaded instance.
-%%     Employs a safety check to unload old instance data first
+%%     Makes sure to unload old instance data first
 setup_assertions:-
-	setup_completed,
 	retract_assertions,
-	setup_assertions.
-setup_assertions:-
-	not(setup_completed),
 	assert_all_exams,
 	assert_student_count,
 	assert_lecturer_count,
 	findall(_,assert_exam_capacity,_),
-	findall(_,assert_shared_exam_students,_),
+	findall(_,assert_shared_exam_student,_),
 	findall(_,assert_students_exams,_),
-	asserta(setup_completed).
+	write("setup completed"), nl.
 
 
 %%% CLEAN-UP %%%
@@ -56,29 +51,22 @@ setup_assertions:-
 %%     used to unload memoized data of a loaded instance
 retract_assertions:-
 	retractall(exams(_)),
-	retractall(share_students(_,_,_)),
+	retractall(share_student(_,_,_)),
 	retractall(required_capacity(_,_)),
 	retractall(students_exams(_,_)),
 	retractall(student_count(_)),
-	retractall(lecturer_count(_)),
-	retractall(setup_completed).
+	retractall(lecturer_count(_)).
 
 
-%%% HELPER PREDICATES %%%
-
-%% takes_exams(?Student,?Exam1,?Exam2)
-%%     Student takes both Exam1 and Exam2
-%%	   Instantiation of arguments can be arbitrarily chosen
-takes_exams(S,E1,E2):-
-	takes_exam(S,E1),
-	takes_exam(S,E2),
-	E1 \= E2.
+%%% ASSERTIONS %%%
 
 %% assert_shared_exam_students
 %%     Registers for two exams that share students the list of shared students
-assert_shared_exam_students:-
-	bagof(S,takes_exams(S,E1,E2),L),
-	asserta(share_students(E1,E2,L)).
+assert_shared_exam_student:-
+	takes_exam(S,E1),
+	takes_exam(S,E2),
+	E1 \= E2,
+	asserta(share_student(E1,E2,S)).
 
 %% assert_exam_capacity
 %%     Registers how much capacity (in a room) is required for an exam

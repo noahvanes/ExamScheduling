@@ -7,6 +7,7 @@
 
 :- module(utils,
 	[remove_one/3,
+	 permutation/2,
 	 member/2,
 	 take/4,
 	 overlap/4,
@@ -22,6 +23,13 @@
 remove_one([E|R],E,R).
 remove_one([H|T],E,[H|Z]):-
 	remove_one(T,E,Z).
+
+%% permutation(+List,?Permutation).
+%%     Permutation has the same elements as list in arbitrary different order
+permutation([],[]).
+permutation([H|T],P):-
+	permutation(T,Z),
+	remove_one(P,H,Z).
 
 %% member(?Element,?List)
 %%     Element is a member of List
@@ -62,6 +70,3 @@ max(M,N,N):- M<N.
 %%     X is the minimum of M and N
 min(M,N,M):- M=<N,!. %green cut
 min(M,N,N):- M>N.
-
-
-
