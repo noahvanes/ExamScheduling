@@ -1,27 +1,3 @@
-:- module(dataset_short,
-	[lecturer/2,
-	 student/2,
-	 course/2,
-	 exam/2,
-	 room/2,
-	 has_exam/2,
-	 duration/2,
-	 follows/2,
-	 teaches/2,
-	 capacity/2,
-	 first_day/1,
-	 last_day/1,
-	 availability/4,
-	 sc_lunch_break/2,
-	 sc_b2b/2,
-	 sc_same_day/2,
-	 sc_no_exam_in_period/5,
-	 sc_not_in_period/6,
-	 sc_correction_time/2,
-	 sc_correction_penalty/2,
-	 sc_study_time/2,
-	 sc_study_penalty/2]).
-
 %Allow grouping constraints per students/lecturers
 :- discontiguous
 	 sc_lunch_break/2,

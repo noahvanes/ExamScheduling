@@ -102,57 +102,11 @@ beam_search(CurrentBeam,N,Deadline,X):-
 
 %%% EXAM PROPERTIES
 
-exam_lecturer(Exam,Lecturer):-
-	nonvar(Exam) -> %optimization!
-		(has_exam(Course,Exam),
-		 teaches(Lecturer,Course));
-		(teaches(Lecturer,Course),
-		 has_exam(Course,Exam)).
 
-takes_exam(Student,Exam):-
-	nonvar(Exam) -> %optimization!
-		(has_exam(Course,Exam),
-		 follows(Student,Course));
-		(follows(Student,Course),
-		 has_exam(Course,Exam)).
-
-room_suitable(Exam,Room):-
-	required_capacity(Exam,ReqCapacity),
-	capacity(Room,Capacity),
-	ReqCapacity =< Capacity.
-
-room_available(Exam,Room,Day,Hour,End):-
-	duration(Exam,Duration),
-	availability(Room,Day,Start,Stop),
-	LatestStart is Stop - Duration,
-	between(Start,LatestStart,Hour),
-	End is Hour + Duration.
-
-takes_exams(S,E1,E2):-
-	takes_exam(S,E1),
-	takes_exam(S,E2),
-	E1 \= E2.
 
 
 
 %%% IS_VALID
-
-%conflicts can only occur on the same Day
-conflict(exam(E1,R1,D,H1,F1),[exam(E2,R2,D,H2,F2)|_]):-
-	overlap(H1,F1,H2,F2), 	%do the scheduled hours of both exams overlap?
-	problem(E1,R1,E2,R2). 	%is it a problem to hold both exams concurrently?
-conflict(NewExam,[_|Exams]):-
-	conflict(NewExam,Exams).
-
-problem(_,R,_,R).		%two overlapping exams in the same room
-problem(E1,_,E2,_):-	%two overlapping exams with overlapping participants
-	mutual_exclusive(E1,E2).
-
-mutual_exclusive(E1,E2):-
-	exam_lecturer(E1,L),
-	exam_lecturer(E2,L).
-mutual_exclusive(E1,E2):-
-	share_students(E1,E2,_).
 
 is_valid(schedule(EventList)):-
 	setup_assertions,
@@ -177,28 +131,6 @@ find_random(X):-
 	random_permutation(Results,RandomResults),
 	member(X,RandomResults).
 
-check([],[],[]).
-check([event(E,R,D,H)|Exams],Valid,Conflicts):-
-	check(Exams,V,C),
-	duration(E,Duration),
-	F is H + Duration,
-	NewEntry = exam(E,R,D,H,F),
-	(conflict(NewEntry,V) ->
-		(Valid = V, Conflicts = [E|C]);
-		(Valid = [NewEntry|V], Conflicts = C)).
-
-schedule([],[]).
-schedule([exam(E,R,D,H,F)|Exams],[event(E,R,D,H)|Events]):-
-	schedule(Exams,Events),
-	duration(E,Duration),
-	F is H + Duration.
-
-repair(Schedule,FixedSchedule):-
-	random_permutation(Schedule,Events),
-	check(Events,Valid,Conflicting),
-	fix(Full-Valid,Conflicting,Valid),
-	schedule(Full,FixedSchedule),
-	!. % we only want one reparation
 
 %%% ASSERTING SCHEDULES %%%
 
