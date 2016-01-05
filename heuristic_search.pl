@@ -188,24 +188,3 @@ find_random(X):-
 	findall(X,X,Results),
 	random_permutation(Results,RandomResults),
 	member(X,RandomResults).
-
-
-%%% NOTES %%%
-
-% could be faster with
-% 	- specialized data structure
-%	- keeping things sorted
-% however...
-% 	- more procedural vs declarative
-%	- faster to generate, but not always to check! 
-
-%TODO: 	
-%	optimizations: is_valid/1
-%		- sorted list
-%		- free timeslots
-%	optimization: cost/1
-%		- group similar exam schedules
-%	error-handling: float in `between`
-
-
-
