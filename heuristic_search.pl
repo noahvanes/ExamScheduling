@@ -28,7 +28,7 @@
 %%     Time is split between both phases, so that they each run T/2 seconds
 find_heuristically(schedule(S),T):-
 	% -- REGISTER DEADLINES -- %
-	Period is T/2,
+	Period is round(T/2),
 	get_time(StartTime),
 	Deadline1 is StartTime + Period,
 	Deadline2 is Deadline1 + Period,
