@@ -41,8 +41,7 @@ setup_assertions:-
 	assert_lecturer_count,
 	findall(_,assert_exam_capacity,_),
 	findall(_,assert_shared_exam_student,_),
-	findall(_,assert_students_exams,_),
-	write("setup completed"), nl.
+	findall(_,assert_students_exams,_).
 
 
 %%% CLEAN-UP %%%
