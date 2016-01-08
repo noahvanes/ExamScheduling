@@ -66,30 +66,27 @@ find_heuristically(S):-
 %%          Hence, it is a greedy algorithm that will always proceed with the best local successor first
 %%			However, since it is DFS it can backtrack, so the search is complete and therefore optimal as T goes to infinite
 %%			Since cost is nondecreasing as exams are added, branches whose cost exceeds the current best solution are pruned
-greedy_search([],_,X,C,X,C):-
-	!. %red cut <- avoid duplicates when checking deadline
-greedy_search(_,Deadline,X,C,X,C):-
-	get_time(CurrentTime),
-	CurrentTime >= Deadline,
-	!. %red cut <- stop the search when out of time
 greedy_search([(_,SC)|R],Deadline,BestS,BestC,X,C):-
 	SC >= BestC, %we can safely prune this branch away
-	!, %red cut <- since we prune this branch, do not attempt to expand it
+	!, %red cut <- prune away this branch and proceed
 	greedy_search(R,Deadline,BestS,BestC,X,C).
 greedy_search([(State,SC)|R],Deadline,_,BestC,X,C):-
 	goal(State,SE),
 	SC < BestC, %new best solution found!
-	!, %red cut <- do not attempt to expand goal states
+	!, %red cut <- proceed with new optimal solution
 	greedy_search(R,Deadline,SE,SC,X,C).
 greedy_search([(State,_)|R],Deadline,BestS,BestC,X,C):-
+	get_time(CurrentTime),
+	CurrentTime < Deadline,
 	findall((NewState,NewCost),
 			(successor(State,NewState),
 		 	 node_cost(NewState,NewCost)),
 			Children),
 	sort(2,@=<,Children,SortedChildren),
 	append(SortedChildren,R,NewAgenda),
-	!, %green cut <- ensure proper tail call
+	!, %red cut <- time left, proceed with tail call
 	greedy_search(NewAgenda,Deadline,BestS,BestC,X,C).
+greedy_search(_,_,X,C,X,C). %empty list or no time left
 
 
 %%% LOCAL BEAM SEARCH %%%
@@ -103,11 +100,9 @@ greedy_search([(State,_)|R],Deadline,BestS,BestC,X,C):-
 %%			This algorithm can be seen as a variation on beam search/hillclimbing
 %%			On each iteration, each schedule in the beam produces one mutation
 %%			A maximum of 'BeamWidth' best schedules is always kept in memory
-beam_search([(Schedule,_)|_],_,Deadline,Schedule):-
-	get_time(CurrentTime),
-	CurrentTime >= Deadline,
-	!. %red cut <- stop the search when out of time
 beam_search(CurrentBeam,N,Deadline,X):-
+	get_time(CurrentTime),
+	CurrentTime < Deadline,
 	findall((NewExams,NewCost),
 			(member((Exams,_),CurrentBeam),
 			 mutation(Exams,NewExams),
@@ -117,8 +112,9 @@ beam_search(CurrentBeam,N,Deadline,X):-
 			CurrentBeam),
 	sort(2,@<,CandidateStates,SortedStates),
 	take(SortedStates,N,NewBeam,_),
-	!, %green cut <- ensure proper tail call
+	!, %red cut <- time left, proceed with tail call
 	beam_search(NewBeam,N,Deadline,X).
+beam_search([(Schedule,_)|_],_,_,Schedule).
 
 %% mutation(+Schedule,-Mutation)
 %%     Mutation is a mutation of a given Schedule
