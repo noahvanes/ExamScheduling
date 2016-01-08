@@ -88,7 +88,7 @@ greedy_search([(State,_)|R],Deadline,BestS,BestC,X,C):-
 			Children),
 	sort(2,@=<,Children,SortedChildren),
 	append(SortedChildren,R,NewAgenda),
-	!, % green cut <- ensure proper tail call
+	!, %green cut <- ensure proper tail call
 	greedy_search(NewAgenda,Deadline,BestS,BestC,X,C).
 
 
@@ -117,7 +117,7 @@ beam_search(CurrentBeam,N,Deadline,X):-
 			CurrentBeam),
 	sort(2,@<,CandidateStates,SortedStates),
 	take(SortedStates,N,NewBeam,_),
-	!, % green cut <- ensure proper tail call
+	!, %green cut <- ensure proper tail call
 	beam_search(NewBeam,N,Deadline,X).
 
 %% mutation(+Schedule,-Mutation)
