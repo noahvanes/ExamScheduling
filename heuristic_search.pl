@@ -86,7 +86,7 @@ greedy_search([(State,_)|R],Deadline,BestS,BestC,X,C):-
 	append(SortedChildren,R,NewAgenda),
 	!, %red cut <- time left, proceed with tail call
 	greedy_search(NewAgenda,Deadline,BestS,BestC,X,C).
-greedy_search(_,_,X,C,X,C). %empty list or no time left
+greedy_search(_,_,X,C,X,C). %empty agenda or no time left
 
 
 %%% LOCAL BEAM SEARCH %%%
@@ -114,7 +114,7 @@ beam_search(CurrentBeam,N,Deadline,X):-
 	take(SortedStates,N,NewBeam,_),
 	!, %red cut <- time left, proceed with tail call
 	beam_search(NewBeam,N,Deadline,X).
-beam_search([(Schedule,_)|_],_,_,Schedule).
+beam_search([(Schedule,_)|_],_,_,Schedule). %no time left
 
 %% mutation(+Schedule,-Mutation)
 %%     Mutation is a mutation of a given Schedule
