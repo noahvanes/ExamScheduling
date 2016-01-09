@@ -145,7 +145,7 @@ initial_state((E,[])):-
 	sort(2,@>=,Exams,SortedExams),
 	exams(SortedExams,E).
 
-%% node_cost(+Node,-Cost)
+%% node_cost(+Node,?Cost)
 %%     Node (in the search tree) has (path) cost Cost
 node_cost((_,E),C):-
 	exams_cost(E,C).

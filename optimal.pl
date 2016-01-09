@@ -50,7 +50,7 @@ find_optimal(X):-
 %%     i.e. they share the same events, possibly permutated
 equivalent(Schedule,OtherSchedule):-
 	permutation(Schedule,OtherSchedule),
-	!. %red <- only looking for one equivalent permutation
+	!. %red cut <- only looking for one equivalent permutation
 
 
 %%% FILTERING OUT OPTIMAL SCHEDULES %%%

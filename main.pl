@@ -1,5 +1,13 @@
 %%% MAIN %%%
 
+/**
+	This file simply imports all relevant predicates from the assignment,
+	so that the user doesn't have to selectively import from each module.
+*/
+
+
+%%% IMPORTS %%%
+
 :- use_module(is_valid, [is_valid/1]).
 :- use_module(cost, [cost/2]).
 :- use_module(violates_sc, [violates_sc/2]).

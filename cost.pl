@@ -18,14 +18,14 @@
 
 %%% CALCULATING SCHEDULE COST %%%
 
-%% cost(+Schedule,-Cost)
+%% cost(+Schedule,?Cost)
 %%     Cost is the normalized cost of Schedule
 %%     This is calculated as specified in the assignment       
 cost(Schedule,Cost):-
 	violates_sc(Schedule,Constraints),
 	constraint_costs(Constraints,Cost).
 
-%% exams_cost(+ExamList,-Cost)
+%% exams_cost(+ExamList,?Cost)
 %%     Identical to cost/2, but for internal usage in other modules
 %%     Assumes that memoized data is already setup, and uses the internal schedule format
 exams_cost(Schedule,Cost):-
@@ -35,7 +35,7 @@ exams_cost(Schedule,Cost):-
 
 %%% CALCULATING CONSTRAINTS COST %%%
 
-%% constraint_costs(+Contraints,-Cost)
+%% constraint_costs(+Contraints,?Cost)
 %%      Calculates the normalized Cost from a list of Contraints
 constraint_costs(Constraints,Cost):-
 	student_count(AmountOfStudents),
@@ -45,7 +45,7 @@ constraint_costs(Constraints,Cost):-
 	AvgLecturerCost is LC/AmountOfLecturers,
 	Cost is (AvgStudentCost + AvgLecturerCost)/2.
 	
-%% constraint_costs(+Constraints,+CurrentSC,+CurrentLC,-SC,-LC)
+%% constraint_costs(+Constraints,+CurrentSC,+CurrentLC,?SC,?LC)
 %%     Contraints is a list of Constraints
 %%     CurrentSC is the currently accumulated cost for students
 %%	   CurrentLC is the currently accumulated cost for lecturers

@@ -172,14 +172,14 @@ exam_between(EID,Day,From,Till):-
 
 %%% HELPER PREDICATES FOR STUDY_TIME/CORRECTION_TIME %%%
 
-%% shortage(+Available,+Needed,-Shortage)
+%% shortage(+Available,+Needed,?Shortage)
 %%      Given an amount of Available and Needed time, we have a shortage Shortage 
 %%      If there is no real shortage, the actual Shortage is 0.
 shortage(Available,Needed,Shortage):-
 	ShortageGap is Needed - Available,
 	max(0,ShortageGap,Shortage).
 
-%% student_penalty(+Exams,+LastDay,+DTL,-Total)
+%% student_penalty(+Exams,+LastDay,+DTL,?Total)
 %%     Exams is a list of exam days and their time needed to study them
 %%	   LastDay is the last day UNTIL which 'study time' has already been scheduled
 %%     DTL is the current total of insufficient days
@@ -194,7 +194,7 @@ student_penalty([(Day,TimeNeeded)|Es],LastDay,DTL,Total):-
 	min(Day,NextDay,ActualNextDay),
 	student_penalty(Es,ActualNextDay,NewDTL,Total).
 
-%% lecturer_penalty(+Exams,+LastDay,+DTL,-Total)
+%% lecturer_penalty(+Exams,+LastDay,+DTL,?Total)
 %%     Exams is a list of exam days and their time needed to correct them
 %%	   LastDay is the last day FROM which 'correction time' has already been scheduled
 %%     DTL is the current total of insufficient days
